@@ -2,7 +2,7 @@
 Name: Ahmed Paul
 Date Created: 04/16/17
 Course: EE 551
-Project: ParkMe
+Project Name: ParkMe
 File Name: 'ParkTableGen.py'
 Code Description: Parking Table Generator.
 '''
