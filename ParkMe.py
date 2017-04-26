@@ -73,7 +73,7 @@ Please pay ${} within 24 hours.""".format(spot.zone, spot.number, spot.totalP, s
     s.ehlo()
     s.starttls()
     # Enter password
-    s.login('saju.jose1@gmail.com', 'Game1121')
+    s.login('parkme.receiver.com', 'soccer24')
     s.sendmail(From,[To],Body)
     s.quit()
 
@@ -211,7 +211,7 @@ Please move your car to avoid paying a fine.""".format(P.zone, P.number, warning
     s.ehlo()
     s.starttls()
     # Enter password
-    s.login('saju.jose1@gmail.com', 'Game1121')
+    s.login('parkme.receiver.com', 'soccer24')
     s.sendmail(From,[To],Body)
     s.quit()
 '''
@@ -493,3 +493,4 @@ while(1):
         pass
 
 ######## Read email for license plate number ###########
+
