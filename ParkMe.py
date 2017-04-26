@@ -21,19 +21,30 @@ import smtplib
 import string
 import time
 import datetime
-from threading import Timer
+import email
+import imaplib
+import mailbox
 import RPi.GPIO as GPIO  
 GPIO.setmode(GPIO.BCM)
 
 # Set up GPIO pins
-#GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_DOWN) 
+GPIO.setup(4, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(12, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(5, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(17, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(22, GPIO.IN, pull_up_down=GPIO.PUD_UP) 
 
 # Definitions
-#P1_gpio = xx
-#P2_gpio = xx
-#P3_gpio = xx
-warningt = 30
-parkrate = 0.01  #$0.01 per minute
+P1_gpio_f = 17
+P2_gpio_f = 23
+P3_gpio_f = 22
+P1_gpio_r = 4
+P2_gpio_r = 12
+P3_gpio_r = 5
+
+warningt = 10
+parkrate = 0.01  #$0.01 per second
 
 #################################
 # Function and Class Definitions
@@ -41,8 +52,8 @@ parkrate = 0.01  #$0.01 per minute
 
 # Send email to user to charge parking fee
 def ChargeUser(spot):
-    To   = "sajujose1@gmail.com"
-    From = "amdpaul@gmail.com"
+    To   = "amdpaul@gmail.com"
+    From = "saju.jose1@gmail.com"
     Subj = "PARKME: PARKING RECEIPT"
     Text = """Zone #{} - Parking Spot #{}:
 
@@ -62,7 +73,7 @@ Please pay ${} within 24 hours.""".format(spot.zone, spot.number, spot.totalP, s
     s.ehlo()
     s.starttls()
     # Enter password
-    s.login('amdpaul@gmail.com', 'XXXXXXX')
+    s.login('saju.jose1@gmail.com', 'Game1121')
     s.sendmail(From,[To],Body)
     s.quit()
 
@@ -80,9 +91,9 @@ def hms_to_sec(time):
 
 # Calculate Cost
 def CalculateCost(time):
-        totalmin = hms_to_min(time)
-        int(totalmin)
-        cost = '{:05.2f}'.format(totalmin*parkrate)
+        totalsec = hms_to_sec(time)
+        int(totalsec)
+        cost = '{:05.2f}'.format(totalsec*parkrate)
         return cost
 
 # Create class for parking spot
@@ -122,17 +133,17 @@ class ParkingSpot:
         return self.totalP
 
 # Define parking spots and zone
-P1 = ParkingSpot(1, 1, 'Empty', '-------', "00:00:00", "00:00:00", "00:00:00", "00.00", "00:00:00", "00:00:00", 'Yes')
-P2 = ParkingSpot(1, 2, 'Empty', '-------', "00:00:00", "00:00:00", "00:00:00", "00.00", "00:00:00", "00:00:00", 'Yes')
-P3 = ParkingSpot(1, 3, 'Empty', '-------', "00:00:00", "00:00:00", "00:00:00", "00.00", "00:00:00", "00:00:00", 'Yes')
+P1 = ParkingSpot(1, 1, 'Empty', '-------', "00:00:00", "00:00:00", "00:00:00", "00.00", "02:44:00", "02:50:00", 'Yes', 0)
+P2 = ParkingSpot(1, 2, 'Empty', '-------', "00:00:00", "00:00:00", "00:00:00", "00.00", "00:00:00", "00:00:00", 'Yes', 0)
+P3 = ParkingSpot(1, 3, 'Empty', '-------', "00:00:00", "00:00:00", "00:00:00", "00.00", "00:00:00", "00:00:00", 'Yes', 0)
 Zone1 = [P1, P2, P3]
 
 # Update main table
 def UpdateTable(Zone1):
-    f = open("/home/apaul/EE 551 Project/ParkMe/MainTable", 'w')
+    f = open("/home/pi/Documents/EE551 Project/MainTable", 'w')
     Zone1 = Zone1
     
-    print ("                                   |             Parked             |      |          Legality          |")
+    print ("                                   |             Parking            |      |          Legality          |")
     print ("Zone # | Spot # | Status | Plate # |  Start  |   End   | Total Time | Cost |  Start  |   End   | Legal? |")
 
     f.write ("                                   |             Parked             |      |          Legality          |\n")
@@ -145,34 +156,34 @@ def UpdateTable(Zone1):
     f.close()
       
 # Initiate parking logs:
-f = open("/home/apaul/EE 551 Project/ParkMe/P1Log", 'w')
+f = open("/home/pi/Documents/EE551 Project/P1Log", 'w')
 f.write("Plate # | Cost | Legal? |\n")
 f.close()
 
-f = open("/home/apaul/EE 551 Project/ParkMe/P2Log", 'w')
+f = open("/home/pi/Documents/EE551 Project/P2Log", 'w')
 f.write("Plate # | Cost | Legal? |\n")
 f.close()
 
-f = open("/home/apaul/EE 551 Project/ParkMe/P3Log", 'w')
+f = open("/home/pi/Documents/EE551 Project/P3Log", 'w')
 f.write("Plate # | Cost | Legal? |\n")
 f.close()
 
 # Append parking logs for every car that parks
 def UpdateLogP1(P1):
-    f = open("/home/apaul/EE 551 Project/ParkMe/P1Log", 'a')
+    f = open("/home/pi/Documents/EE551 Project/P1Log", 'a')
     f.write (" {}| {}|     {}|\n".format(P1.plate, P1.cost, P1.legal))
     f.close()
 
 def UpdateLogP2(P2):
-    f = open("/home/apaul/EE 551 Project/ParkMe/P2Log", 'a')
+    f = open("/home/pi/Documents/EE551 Project/P2Log", 'a')
     f.write (" {}| {}|     {}|\n".format(P2.plate, P2.cost, P2.legal))
     f.close()
 
 def UpdateLogP3(P3):
-    f = open("/home/apaul/EE 551 Project/ParkMe/P3Log", 'a')
+    f = open("/home/pi/Documents/EE551 Project/P3Log", 'a')
     f.write (" {}| {}|     {}|\n".format(P3.plate, P3.cost, P3.legal))
     f.close()
-
+'''
 # Change parking spot to illegal after time to illegal has expired
 def NowIllegal(P, Z):
     P.legal = 'No '
@@ -180,8 +191,8 @@ def NowIllegal(P, Z):
 
 # Notify parking spot will be illegal soon
 def SoonIllegal(P):
-    To   = "sajujose1@gmail.com"
-    From = "amdpaul@gmail.com"
+    To   = "amdpaul@gmail.com"
+    From = "saju.jose1@gmail.com"
     Subj = "PARKME: ILLEGALLY PARKED NOTIFICATION"
     Text = """Zone #{} - Parking Spot #{}:
 
@@ -200,20 +211,28 @@ Please move your car to avoid paying a fine.""".format(P.zone, P.number, warning
     s.ehlo()
     s.starttls()
     # Enter password
-    s.login('amdpaul@gmail.com', 'XXXXXXX')
+    s.login('saju.jose1@gmail.com', 'Game1121')
     s.sendmail(From,[To],Body)
     s.quit()
-
+'''
+'''
 # Set timer to count down until time until illegally parked and
 # timer to notify that car will be illegally parked soon
-def SetTimersP1(P1, Z):
-    t1a = Timer(P1.time2ill, NowIllegal(P1, Z))
-    t1a.start()
+def SetTimersP1(P1, Z, a, b, s):
+    if s == True:
+        t1a = Timer(P1.time2ill, NowIllegal, args=(P1, Z,))
+        t1a.start()
 
-    z = P1.time2ill - warningt 
-    t1b = Timer(z, SoonIllegal(P1))
-    t1b.start()
+        z = P1.time2ill - warningt 
+        t1b = Timer(z, SoonIllegal, args=(P1,))
+        t1b.start()
 
+    if b == True:
+        t1a.cancel()
+        t1b.cancel()
+    if a == True:
+        t1a.cancel()      
+        
 def SetTimersP2(P2, Z):
     t2a = Timer(P2.time2ill, NowIllegal(P2, Z))
     t2a.start()
@@ -229,205 +248,248 @@ def SetTimersP3(P3, Z):
     z = P3.time2ill - warningt 
     t3b = Timer(z, SoonIllegal(P3))
     t3b.start()
+'''
+
+#############
+# Interrupts
+#############
+
+###########
+# Occupied
+###########
+
+# Interrupt - Mark P1 occupied
+def callback_4_R(channel):  
+
+    # Mark parking spot occupied
+    P1.status = 'Full '
+    P1.endP   = '--:--:--'
+    P1.totalP = '--:--:--'
+    P1.cost   = '--.--'
+
+    # Mark time parking session starts
+    P1.startP = time.strftime("%I:%M:%S")
+
+    # Check if spot is legal
+    startI = hms_to_sec(P1.startI)
+    endI   = hms_to_sec(P1.endI)
+    startP = hms_to_sec(P1.startP)
     
+    if startI < startP and startP < endI:
+        P1.legal = 'No '
+    elif startP < startI:
+        P1.time2ill = startI - startP
+    else:
+        pass
+         
+    # Update main table
+    UpdateTable(Zone1)
+
+# Interrupt - Mark P2 occupied
+def callback_12_R(channel):  
+
+    # Mark parking spot occupied
+    P2.status = 'Full '
+    P2.endP   = '--:--:--'
+    P2.totalP = '--:--:--'
+    P2.cost   = '--.--'
+
+    # Mark time parking session starts
+    P2.startP = time.strftime("%I:%M:%S")
+
+    # Check if spot is legal
+    startI = hms_to_sec(P2.startI)
+    endI   = hms_to_sec(P2.endI)
+    startP = hms_to_sec(P2.startP)
+
+    if startI < startP and startP < endI:
+        P2.legal = 'No '
+    elif startP < startI:
+        P2.time2ill = startI - startP
+    else:
+        pass
+            
+    # Update main table
+    UpdateTable(Zone1)
+        
+# Interrupt - Mark P3 occupied
+def callback_5_R(channel): 
+
+    # Mark parking spot occupied
+    P3.status = 'Full '
+    P3.endP   = '--:--:--'
+    P3.totalP = '--:--:--'
+    P3.cost   = '--.--'
+
+    # Mark time parking session starts
+    P3.startP = time.strftime("%I:%M:%S")
+
+    # Check if spot is legal
+    startI = hms_to_sec(P3.startI)
+    endI   = hms_to_sec(P3.endI)
+    startP = hms_to_sec(P3.startP)
+    
+    if startI < startP and startP < endI:
+        P3.legal = 'No '
+    elif startP < startI:
+        P3.time2ill = startI - startP
+    else:
+        pass
+            
+    # Update main table
+    UpdateTable(Zone1)
+    
+#############
+# Unoccupied
+#############
+        
+# Interrupt - Mark P1 unoccupied
+def callback_17_F(channel):    
+
+    # Mark parking spot unoccupied
+    P1.status = 'Empty'
+
+    # Mark time parking session ends
+    P1.endP = time.strftime("%I:%M:%S")
+
+    # Check if illegal upon leaving
+    startI = hms_to_sec(P1.startI)
+    endP   = hms_to_sec(P1.endP)
+
+    if endP > startI:
+        P1.legal = 'No '
+    else:
+        pass 
+
+    # Calculate total time
+    P1.totalP = P1.CalculateTotalP()
+    P1.cost = CalculateCost(P1.totalP)
+        
+    # Update P1 Log, clear plate # and update main table
+    UpdateLogP1(P1)
+    P1.plate  = '-------'
+    UpdateTable(Zone1)
+
+    # Charge user via email
+    ChargeUser(P1)
+
+# Interrupt - Mark P2 unoccupied
+def callback_23_F(channel):   
+
+    # Mark parking spot unoccupied
+    P2.status = 'Empty'
+
+    # Mark time parking session ends
+    P2.endP = time.strftime("%I:%M:%S")
+
+    # Check if illegal upon leaving
+    startI = hms_to_sec(P2.startI)
+    endP   = hms_to_sec(P2.endP)
+
+    if endP > startI:
+        P2.legal = 'No '
+    else:
+        pass
+
+    # Calculate total time
+    P2.totalP = P2.CalculateTotalP()
+    P2.cost = CalculateCost(P2.totalP)
+        
+    # Update P2 log, clear plate # and update main table
+    UpdateLogP2(P2)
+    P2.plate  = '-------'
+    UpdateTable(Zone1)
+    
+    # Charge user via email
+    ChargeUser(P2)
+
+# Interrupt - Mark P3 unoccupied
+def callback_22_F(channel):  
+
+    # Mark parking spot unoccupied
+    P3.status = 'Empty'
+
+    # Mark time parking session ends
+    P3.endP = time.strftime("%I:%M:%S")
+
+    # Check if illegal upon leaving
+    startI = hms_to_sec(P3.startI)
+    endP   = hms_to_sec(P3.endP)
+
+    if endP > startI:
+        P3.legal = 'No '
+    else:
+        pass
+
+    # Calculate total time
+    P3.totalP = P3.CalculateTotalP()
+    P3.cost = CalculateCost(P3.totalP)
+        
+    # Update P3 log, clear plate # and update main table
+    UpdateLogP3(P3)
+    P3.plate  = '-------'
+    UpdateTable(Zone1)
+
+    # Charge user via email
+    ChargeUser(P3)
+            
 ############
 # Main Loop
 ############
 
 raw_input("Press Enter when ready")
 
+# Callbacks
+GPIO.add_event_detect(P1_gpio_r, GPIO.RISING, callback=callback_4_R, bouncetime=10)
+GPIO.add_event_detect(P2_gpio_r, GPIO.RISING, callback=callback_12_R, bouncetime=10)
+GPIO.add_event_detect(P3_gpio_r, GPIO.RISING, callback=callback_5_R, bouncetime=10)
+GPIO.add_event_detect(P1_gpio_f, GPIO.FALLING, callback=callback_17_F, bouncetime=10)
+GPIO.add_event_detect(P2_gpio_f, GPIO.FALLING, callback=callback_23_F, bouncetime=10)
+GPIO.add_event_detect(P3_gpio_f, GPIO.FALLING, callback=callback_22_F, bouncetime=10)
+
 while(1):
 
+    # Continuously check email for license plate #
+    mail = imaplib.IMAP4_SSL('imap.gmail.com')
+    (retcode, capabilities) = mail.login('parkme.receiver@gmail.com','soccer24')
+    mail.list()
+    mail.select('inbox')
+
+    n = 0
+    (retcode, messages) = mail.search(None, '(UNSEEN)')
+    if retcode == 'OK':
+
+       for num in messages[0].split() :
+          #print 'Processing '
+          n=n+1
+          typ, data = mail.fetch(num,'(RFC822)')
+          for response_part in data:
+              if isinstance(response_part, tuple):
+                  original = email.message_from_string(response_part[1])
+                  
+                  #print original['From']
+                  
+                  #Subject: 'Zone #1 - Parking Spot #X: GRD8042'
+                  readplate = original['Subject'].split(' ')
+                  #print original['Subject']
+                  typ, data = mail.store(num,'+FLAGS','\\Seen')
+
+    #print n
+
+    # Read in license plate
+    if n == 1:
+        if readplate[5] == '#1:':
+            P1.plate = readplate[6]
+            UpdateTable(Zone1)
+        elif readplate[5] == '#2:':
+            P2.plate = readplate[6]
+            UpdateTable(Zone1)
+        elif readplate[5] == '#3:':
+            P3.plate = readplate[6]
+            UpdateTable(Zone1)
+        else:
+            pass
+    else:
+        pass
+
 ######## Read email for license plate number ###########
-
-
-#############
-# Interrupts
-#############
-
-# Interrupt - Mark P1 occupied
-    try:  
-        GPIO.wait_for_edge(P1_gpio, GPIO.FALLING)  
-
-        # Mark parking spot occupied
-        P1.status = 'Full '
-        P1.plate  = 'XXXXXXX'
-
-        # Mark time parking session starts
-        P1.startP = time.strftime("%I:%M:%S")
-
-        # Check if spot is legal
-        startI = hms_to_sec(P1.startI)
-        endI   = hms_to_sec(P1.endI)
-        startP = hms_to_sec(P1.startP)
-
-        if startI < startP and startP < endI:
-            P1.legal = 'No '
-        elif startP < startI:
-            P1.time2ill = startI - startP
-            SetTimersP1(P1, Zone1)
-        else:
-            pass
-        
-        # Update main table
-        UpdateTable(Zone1)
-        
-    except KeyboardInterrupt:  
-        GPIO.cleanup()  # clean up GPIO on CTRL+C exit  
-    GPIO.cleanup()  # clean up GPIO on normal exit
-
-# Interrupt - Mark P2 occupied
-    try:  
-        GPIO.wait_for_edge(P2_gpio, GPIO.FALLING)  
-
-        # Mark parking spot occupied
-        P2.status = 'Full '
-        P2.plate  = 'XXXXXXX'
-
-        # Mark time parking session starts
-        P2.startP = time.strftime("%I:%M:%S")
-
-        # Check if spot is legal
-        startI = hms_to_sec(P2.startI)
-        endI   = hms_to_sec(P2.endI)
-        startP = hms_to_sec(P2.startP)
-
-        if startI < startP and startP < endI:
-            P2.legal = 'No '
-        elif startP < startI:
-            P2.time2ill = startI - startP
-            SetTimersP2(P2, Zone1)
-        else:
-            pass
-        
-        # Update main table
-        UpdateTable(Zone1)
-        
-    except KeyboardInterrupt:  
-        GPIO.cleanup()  # clean up GPIO on CTRL+C exit  
-    GPIO.cleanup()  # clean up GPIO on normal exit
-
-# Interrupt - Mark P3 occupied
-    try:  
-        GPIO.wait_for_edge(P3_gpio, GPIO.FALLING)  
-
-        # Mark parking spot occupied
-        P3.status = 'Full '
-        P3.plate  = 'XXXXXXX'
-
-        # Mark time parking session starts
-        P3.startP = time.strftime("%I:%M:%S")
-
-        # Check if spot is legal
-        startI = hms_to_sec(P3.startI)
-        endI   = hms_to_sec(P3.endI)
-        startP = hms_to_sec(P3.startP)
-
-        if startI < startP and startP < endI:
-            P3.legal = 'No '
-        elif startP < startI:
-            P3.time2ill = startI - startP
-            SetTimersP3(P3, Zone1)
-        else:
-            pass
-        
-        # Update main table
-        UpdateTable(Zone1)
-        
-    except KeyboardInterrupt:  
-        GPIO.cleanup()  # clean up GPIO on CTRL+C exit  
-    GPIO.cleanup()  # clean up GPIO on normal exit
-
-# Interrupt - Mark P1 unoccupied
-    try:  
-        GPIO.wait_for_edge(P1_gpio, GPIO.RISING)  
-
-        # Mark parking spot unoccupied
-        P1.status = 'Empty '
-        P1.plate  = '-------'
-
-        # Cancel timers
-        t1a.cancel()
-        t1b.cancel()
-
-        # Mark time parking session ends
-        P1.endP = time.strftime("%I:%M:%S")
-
-        # Calculate total time
-        P1.totalP = P1.CalculateTotalP()
-        P1.cost = CalculateCost(P1.totalP)
-        
-        # Update main table and P1 Log
-        UpdateTable(Zone1)
-        UpdateLogP1(P1)
-
-        # Charge user via email
-        ChargeUser(P1)
-        
-    except KeyboardInterrupt:  
-        GPIO.cleanup()  # clean up GPIO on CTRL+C exit  
-    GPIO.cleanup()  # clean up GPIO on normal exit
-
-# Interrupt - Mark P2 unoccupied
-    try:  
-        GPIO.wait_for_edge(P2_gpio, GPIO.RISING)  
-
-        # Mark parking spot unoccupied
-        P2.status = 'Empty '
-        P2.plate  = '-------'
-
-        # Cancel timers
-        t2a.cancel()
-        t2b.cancel()
-
-        # Mark time parking session ends
-        P2.endP = time.strftime("%I:%M:%S")
-
-        # Calculate total time
-        P2.totalP = P1.CalculateTotalP()
-        P2.cost = CalculateCost(P2.totalP)
-        
-        # Update main table and P2 log
-        UpdateTable(Zone1)
-        UpdateLogP2(P2)
-
-        # Charge user via email
-        ChargeUser(P2)
-        
-    except KeyboardInterrupt:  
-        GPIO.cleanup()  # clean up GPIO on CTRL+C exit  
-    GPIO.cleanup()  # clean up GPIO on normal exit
-
-# Interrupt - Mark P3 unoccupied
-    try:  
-        GPIO.wait_for_edge(P3_gpio, GPIO.RISING)  
-
-        # Mark parking spot unoccupied
-        P3.status = 'Empty '
-        P3.plate  = '-------'
-
-        # Cancel timers
-        t3a.cancel()
-        t3b.cancel()
-
-        # Mark time parking session ends
-        P3.endP = time.strftime("%I:%M:%S")
-
-        # Calculate total time
-        P3.totalP = P1.CalculateTotalP()
-        P3.cost = CalculateCost(P3.totalP)
-        
-        # Update main table and P3 log
-        UpdateTable(Zone1)
-        UpdateLogP3(P3)
-
-        # Charge user via email
-        ChargeUser(P3)
-        
-    except KeyboardInterrupt:  
-        GPIO.cleanup()  # clean up GPIO on CTRL+C exit  
-    GPIO.cleanup()  # clean up GPIO on normal exit
-    
-
-
-
