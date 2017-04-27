@@ -43,7 +43,6 @@ P1_gpio_r = 4
 P2_gpio_r = 12
 P3_gpio_r = 5
 
-warningt = 10
 parkrate = 0.01  #$0.01 per second
 
 #################################
@@ -52,8 +51,8 @@ parkrate = 0.01  #$0.01 per second
 
 # Send email to user to charge parking fee
 def ChargeUser(spot):
-    To   = "amdpaul@gmail.com"
-    From = "saju.jose1@gmail.com"
+    To   = "parkme.sender@gmail.com"
+    From = "parkme.receiver@gmail.com"
     Subj = "PARKME: PARKING RECEIPT"
     Text = """Zone #{} - Parking Spot #{}:
 
@@ -183,21 +182,24 @@ def UpdateLogP3(P3):
     f = open("/home/pi/Documents/EE551 Project/P3Log", 'a')
     f.write (" {}| {}|     {}|\n".format(P3.plate, P3.cost, P3.legal))
     f.close()
-'''
-# Change parking spot to illegal after time to illegal has expired
-def NowIllegal(P, Z):
-    P.legal = 'No '
-    UpdateTable(Z)
 
 # Notify parking spot will be illegal soon
-def SoonIllegal(P):
-    To   = "amdpaul@gmail.com"
-    From = "saju.jose1@gmail.com"
-    Subj = "PARKME: ILLEGALLY PARKED NOTIFICATION"
-    Text = """Zone #{} - Parking Spot #{}:
+def SendReg(P):
+    if P.time2ill == 0:
+        Text = """Zone #{} - Parking Spot #{}:
 
-Your car will be illegally parked in {}s.
-Please move your car to avoid paying a fine.""".format(P.zone, P.number, warningt)
+Thank you for registering your car: {}.""".format(P.zone, P.number, P.plate) 
+    else:
+        timetoill = time.strftime("%H:%M:%S", time.gmtime(P.time2ill))
+        Text = """Zone #{} - Parking Spot #{}:
+
+Thank you for registering your car: {}.
+Your car will be illegally parked in (hh:mm:ss) {}.
+Please relocate your car on time to avoid paying a fine.""".format(P.zone, P.number, P.plate, timetoill)
+        
+    To   = "parkme.sender@gmail.com"
+    From = "parkme.receiver@gmail.com"
+    Subj = "PARKME: Parking Registration"
 
     Body = string.join((
         "From: %s" % From,
@@ -214,41 +216,6 @@ Please move your car to avoid paying a fine.""".format(P.zone, P.number, warning
     s.login('parkme.receiver.com', 'XXXXXX')
     s.sendmail(From,[To],Body)
     s.quit()
-'''
-'''
-# Set timer to count down until time until illegally parked and
-# timer to notify that car will be illegally parked soon
-def SetTimersP1(P1, Z, a, b, s):
-    if s == True:
-        t1a = Timer(P1.time2ill, NowIllegal, args=(P1, Z,))
-        t1a.start()
-
-        z = P1.time2ill - warningt 
-        t1b = Timer(z, SoonIllegal, args=(P1,))
-        t1b.start()
-
-    if b == True:
-        t1a.cancel()
-        t1b.cancel()
-    if a == True:
-        t1a.cancel()      
-        
-def SetTimersP2(P2, Z):
-    t2a = Timer(P2.time2ill, NowIllegal(P2, Z))
-    t2a.start()
-
-    z = P2.time2ill - warningt 
-    t2b = Timer(z, SoonIllegal(P2))
-    t2b.start()
-
-def SetTimersP3(P3, Z):
-    t3a = Timer(P3.time2ill, NowIllegal(P3, Z))
-    t3a.start()
-
-    z = P3.time2ill - warningt 
-    t3b = Timer(z, SoonIllegal(P3))
-    t3b.start()
-'''
 
 #############
 # Interrupts
@@ -280,7 +247,7 @@ def callback_4_R(channel):
     elif startP < startI:
         P1.time2ill = startI - startP
     else:
-        pass
+        P1.time2ill = 0
          
     # Update main table
     UpdateTable(Zone1)
@@ -307,7 +274,7 @@ def callback_12_R(channel):
     elif startP < startI:
         P2.time2ill = startI - startP
     else:
-        pass
+        P2.time2ill = 0
             
     # Update main table
     UpdateTable(Zone1)
@@ -334,7 +301,7 @@ def callback_5_R(channel):
     elif startP < startI:
         P3.time2ill = startI - startP
     else:
-        pass
+        P3.time2ill = 0
             
     # Update main table
     UpdateTable(Zone1)
@@ -354,9 +321,10 @@ def callback_17_F(channel):
 
     # Check if illegal upon leaving
     startI = hms_to_sec(P1.startI)
+    startP = hms_to_sec(P1.startP)
     endP   = hms_to_sec(P1.endP)
 
-    if endP > startI:
+    if startP < startI & startI < endP:
         P1.legal = 'No '
     else:
         pass 
@@ -384,12 +352,13 @@ def callback_23_F(channel):
 
     # Check if illegal upon leaving
     startI = hms_to_sec(P2.startI)
+    startP = hms_to_sec(P2.startP)
     endP   = hms_to_sec(P2.endP)
 
-    if endP > startI:
+    if startP < startI & startI < endP:
         P2.legal = 'No '
     else:
-        pass
+        pass 
 
     # Calculate total time
     P2.totalP = P2.CalculateTotalP()
@@ -414,12 +383,13 @@ def callback_22_F(channel):
 
     # Check if illegal upon leaving
     startI = hms_to_sec(P3.startI)
+    startP = hms_to_sec(P3.startP)
     endP   = hms_to_sec(P3.endP)
 
-    if endP > startI:
+    if startP < startI & startI < endP:
         P3.legal = 'No '
     else:
-        pass
+        pass 
 
     # Calculate total time
     P3.totalP = P3.CalculateTotalP()
@@ -460,7 +430,6 @@ while(1):
     if retcode == 'OK':
 
        for num in messages[0].split() :
-          #print 'Processing '
           n=n+1
           typ, data = mail.fetch(num,'(RFC822)')
           for response_part in data:
@@ -473,7 +442,6 @@ while(1):
                   readplate = original['Subject'].split(' ')
                   #print original['Subject']
                   typ, data = mail.store(num,'+FLAGS','\\Seen')
-
     #print n
 
     # Read in license plate
@@ -481,17 +449,16 @@ while(1):
         if readplate[5] == '#1:':
             P1.plate = readplate[6]
             UpdateTable(Zone1)
+            SendReg(P1)
         elif readplate[5] == '#2:':
             P2.plate = readplate[6]
             UpdateTable(Zone1)
+            SendReg(P2)
         elif readplate[5] == '#3:':
             P3.plate = readplate[6]
             UpdateTable(Zone1)
+            SendReg(P3)
         else:
             pass
     else:
         pass
-
-######## Read email for license plate number ###########
-
-
